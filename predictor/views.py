@@ -1,74 +1,132 @@
-#Import Json for JSON processing
+# Import json for parsing JSON request bodies
 import json
-#Import JsonResponse to return JSON data to the client
+
+# Import JsonResponse to return JSON output
 from django.http import JsonResponse
 
-#Import csrf_exempt to simplify API testing during development
+# Import csrf_exempt for simpler API testing during development
 from django.views.decorators.csrf import csrf_exempt
+
 
 @csrf_exempt
 def home(request):
-    #Return a simple message for the root route
+    # Return an API status message
     return JsonResponse({
-        'message':'Django Student Prediction API is Running...'
+        'message': 'Django Student Prediction API is running'
     })
+
+
 @csrf_exempt
 def predict(request):
-    #Allow only POST request
+    # Allow only POST requests
     if request.method != 'POST':
         return JsonResponse({
-            'error':'Only POST method is allowed'
-        }, status = 405)
-    #Attempt to read and parse JSON data from the request body
+            'error': 'Only POST method is allowed'
+        }, status=405)
+
+    # Parse the incoming JSON request body
     try:
         data = json.loads(request.body)
     except json.JSONDecodeError:
-        #Return an error if the request body is invalid JSON
         return JsonResponse({
-            'error':'Invalid JSON format'
-        }, status = 400)
-     
-    #Check whether any data was provided
+            'error': 'Invalid JSON format'
+        }, status=400)
+
+    # Check whether the request body is empty
     if not data:
         return JsonResponse({
-            'error':'No data provided'
-        }, status = 400)
-    #Define the require fields for the preduction
-    required_fields = ['study_hours', 'attendance', 'assignment_completed']
+            'error': 'No data provided'
+        }, status=400)
 
-    #Check whether each required fields exists
+    # Define the required fields
+    required_fields = [
+        'student_name',
+        'age',
+        'study_hours',
+        'attendance',
+        'previous_grade',
+        'assignments_completed'
+    ]
+
+    # Check for missing fields
     for field in required_fields:
         if field not in data:
             return JsonResponse({
-                'error':f'Missing field:{field}'
-            }, status = 400)
-    #Extract values from the JSON data
+                'error': f'Missing field: {field}'
+            }, status=400)
+
+    # Extract the input values
+    student_name = data.get('student_name')
+    age = data.get('age')
     study_hours = data.get('study_hours')
-    attendance  = data.get('attendance') 
-    assignment_completed = data.get('assignment_completed')
+    attendance = data.get('attendance')
+    previous_grade = data.get('previous_grade')
+    assignments_completed = data.get('assignments_completed')
 
-    #Try to converting values to numbers
+    # Validate student_name
+    if not isinstance(student_name, str) or not student_name.strip():
+        return JsonResponse({
+            'error': 'student_name must be a non-empty string'
+        }, status=400)
+
+    # Convert numeric fields to numbers
     try:
+        age = float(age)
         study_hours = float(study_hours)
-        attendance  = float(attendance)
-        assignment_completed = float(assignment_completed)
+        attendance = float(attendance)
+        previous_grade = float(previous_grade)
+        assignments_completed = float(assignments_completed)
     except (TypeError, ValueError):
-        return JsonResponse ({
-            'error':'study_hours, attendance and assignment_completed must be numberic'
-        } ,status = 400)   
-    #Return a temporary success message after validation
-    # return JsonResponse({
-    #     'message':'Validation passed',
-    #     'study_hours': study_hours,
-    #     'attendance': attendance,
-    #     'assignment_completed': assignment_completed
-    # })
+        return JsonResponse({
+            'error': 'age, study_hours, attendance, previous_grade, and assignments_completed must be numeric'
+        }, status=400)
 
-    #Apply rule-based predic logic
-    if study_hours >= 8 and attendance >= 80 and assignment_completed >= 8:
+    # Validate numeric ranges
+    if age <= 0:
+        return JsonResponse({
+            'error': 'age must be greater than 0'
+        }, status=400)
+
+    if study_hours < 0:
+        return JsonResponse({
+            'error': 'study_hours cannot be negative'
+        }, status=400)
+
+    if attendance < 0 or attendance > 100:
+        return JsonResponse({
+            'error': 'attendance must be between 0 and 100'
+        }, status=400)
+
+    if previous_grade < 0 or previous_grade > 100:
+        return JsonResponse({
+            'error': 'previous_grade must be between 0 and 100'
+        }, status=400)
+
+    if assignments_completed < 0:
+        return JsonResponse({
+            'error': 'assignments_completed cannot be negative'
+        }, status=400)
+
+    # Apply rule-based prediction logic
+    if (
+        study_hours >= 8 and
+        attendance >= 80 and
+        previous_grade >= 75 and
+        assignments_completed >= 8
+    ):
         prediction = 'Excellent'
+    elif (
+        study_hours >= 5 and
+        attendance >= 60 and
+        previous_grade >= 50 and
+        assignments_completed >= 5
+    ):
+        prediction = 'Good'
     else:
-        prediction = 'Need Improvement'
+        prediction = 'Needs Improvement'
+
+    # Return the final prediction result
     return JsonResponse({
-        'Prediction': prediction
-    })        
+        'student_name': student_name,
+        'prediction': prediction
+    })
